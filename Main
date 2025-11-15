@@ -1,14 +1,17 @@
---// Settings (This configuration section controls the look of the ESP)
+--// Configuration and Control (Accessible via getgenv())
 getgenv().ESPSettings = {
-    -- === BOX TOGGLES (New) ===
-    FillEnabled = true, -- Enable/Disable the transparent background fill
+    -- === GLOBAL CONTROL (CHANGE THIS TO TRUE/FALSE TO START/STOP ESP) ===
+    Enabled = false, 
+    
+    -- === BOX TOGGLES ===
+    FillEnabled = false,   -- Enable/Disable the transparent background fill
     OutlineEnabled = true, -- Enable/Disable the black outline border
 
-    -- === BOX COLORS AND THICKNESS ===
-    BoxColor = Color3.fromRGB(255, 255, 255), -- Main line/border color (Currently White)
-    FillColor = Color3.fromRGB(0, 0, 0), -- Color of the transparent background fill (Currently Black)
-    OutlineColor = Color3.fromRGB(0, 0, 0), -- Color of the outer edge/outline (Typically Black)
-
+    -- === COLORS AND THICKNESS ===
+    BoxColor = Color3.fromRGB(255, 255, 255), -- Main line/border color (White)
+    FillColor = Color3.fromRGB(0, 0, 0),    -- Color of the transparent background fill (Black)
+    OutlineColor = Color3.fromRGB(0, 0, 0), -- Color of the outer edge/outline (Black)
+    
     BoxThickness = 1,
     OutlineThickness = 1.5,
     FillTransparency = 0.5, -- 0 is opaque, 1 is fully transparent
@@ -19,10 +22,8 @@ getgenv().ESPSettings = {
     Font = Drawing.Fonts.Plex,
 
     -- === DIMENSION SETTINGS ===
-    -- Adjusts the vertical offset of the anchor point below the HumanoidRootPart.
     FootOffset = 5,
-    -- Ratio of Height to Width (e.g., 1 means it's a perfect square)
-    WidthRatio = 1,
+    WidthRatio = 1, 
 }
 
 local Players = game:GetService('Players')
@@ -30,59 +31,55 @@ local RunService = game:GetService('RunService')
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 local ESPObjects = {}
+local RenderStepConnection = nil -- Stores the connection for the main loop
 
---// ESP Visualization Creation and Management
+--// --- ESP Core Logic ---
 
 --// Create ESP visuals
 local function CreateESP(player)
     local esp = {}
 
-    -- 1. Outline box (Black, outer border)
     esp.BoxOutline = Drawing.new('Square')
     esp.BoxOutline.Thickness = getgenv().ESPSettings.OutlineThickness
     esp.BoxOutline.Filled = false
     esp.BoxOutline.Color = getgenv().ESPSettings.OutlineColor
     esp.BoxOutline.Transparency = 1
-    esp.BoxOutline.Visible = false
 
-    -- 2. Filled Box (Transparent Background)
     esp.FilledBox = Drawing.new('Square')
     esp.FilledBox.Thickness = 0
     esp.FilledBox.Filled = true
-    esp.FilledBox.Color = getgenv().ESPSettings.FillColor -- Uses FillColor
+    esp.FilledBox.Color = getgenv().ESPSettings.FillColor
     esp.FilledBox.Transparency = getgenv().ESPSettings.FillTransparency
-    esp.FilledBox.Visible = false
 
-    -- 3. Inner box (Main Line Border)
     esp.Box = Drawing.new('Square')
     esp.Box.Thickness = getgenv().ESPSettings.BoxThickness
     esp.Box.Filled = false
-    esp.Box.Color = getgenv().ESPSettings.BoxColor -- Uses BoxColor
+    esp.Box.Color = getgenv().ESPSettings.BoxColor
     esp.Box.Transparency = 1
-    esp.Box.Visible = false
 
-    -- Name tag
     esp.Name = Drawing.new('Text')
     esp.Name.Size = 14
     esp.Name.Center = true
     esp.Name.Outline = true
     esp.Name.Font = getgenv().ESPSettings.Font
     esp.Name.Color = getgenv().ESPSettings.NameColor
-    esp.Name.Visible = false
 
-    -- Tool tag
     esp.Tool = Drawing.new('Text')
     esp.Tool.Size = 14
     esp.Tool.Center = true
     esp.Tool.Outline = true
     esp.Tool.Font = getgenv().ESPSettings.Font
     esp.Tool.Color = getgenv().ESPSettings.ToolColor
-    esp.Tool.Visible = false
+    
+    -- Ensure everything starts hidden
+    for _, obj in pairs(esp) do
+        obj.Visible = false
+    end
 
     return esp
 end
 
---// Cleanup
+--// Cleanup function to remove all drawings for a single player
 local function RemoveESP(player)
     if ESPObjects[player] then
         for _, obj in pairs(ESPObjects[player]) do
@@ -92,11 +89,18 @@ local function RemoveESP(player)
     end
 end
 
-Players.PlayerRemoving:Connect(RemoveESP)
+--// Function to hide all active ESP drawings
+local function HideAllESP()
+    for _, esp in pairs(ESPObjects) do
+        for _, obj in pairs(esp) do
+            obj.Visible = false
+        end
+    end
+end
 
---// Main Update Loop - Runs automatically when the script is executed
-RunService.RenderStepped:Connect(function()
-    local settings = getgenv().ESPSettings -- Get current settings once per frame
+--// Main rendering loop (Update function)
+local function UpdateESP()
+    local settings = getgenv().ESPSettings
 
     for _, player in pairs(Players:GetPlayers()) do
         if
@@ -117,45 +121,41 @@ RunService.RenderStepped:Connect(function()
             if hrp and head then
                 -- 1. Calculate the 3D position of the character's head and feet
                 local headPosition = head.Position
-                local footPosition = hrp.Position
-                    - Vector3.new(0, settings.FootOffset, 0)
+                local footPosition = hrp.Position - Vector3.new(0, settings.FootOffset, 0)
 
                 -- 2. Convert positions to 2D screen coordinates
-                local headScreenPos, headOnScreen =
-                    Camera:WorldToViewportPoint(headPosition)
-                local footScreenPos, footOnScreen =
-                    Camera:WorldToViewportPoint(footPosition)
+                local headScreenPos, headOnScreen = Camera:WorldToViewportPoint(headPosition)
+                local footScreenPos, footOnScreen = Camera:WorldToViewportPoint(footPosition)
 
-                -- Check if player is on screen
                 if headOnScreen and footOnScreen then
+                    
                     -- Calculate dynamic box dimensions
                     local boxHeight = footScreenPos.Y - headScreenPos.Y
                     local boxWidth = boxHeight * settings.WidthRatio
 
                     -- Calculate Top-Left corner
                     local boxX = headScreenPos.X - boxWidth / 2
-                    local boxYTop = headScreenPos.Y
+                    local boxYTop = headScreenPos.Y 
                     local centerX = headScreenPos.X
 
-                    -- 1. Outline (Black) - Toggleable
+                    -- 1. Outline (Black)
                     esp.BoxOutline.Position = Vector2.new(boxX - 1, boxYTop - 1)
-                    esp.BoxOutline.Size =
-                        Vector2.new(boxWidth + 2, boxHeight + 2)
+                    esp.BoxOutline.Size = Vector2.new(boxWidth + 2, boxHeight + 2)
                     esp.BoxOutline.Visible = settings.OutlineEnabled
-                    esp.BoxOutline.Color = settings.OutlineColor -- Ensure color is updated dynamically
+                    esp.BoxOutline.Color = settings.OutlineColor 
 
-                    -- 2. Filled Box (Transparent) - Toggleable
+                    -- 2. Filled Box (Transparent)
                     esp.FilledBox.Position = Vector2.new(boxX, boxYTop)
                     esp.FilledBox.Size = Vector2.new(boxWidth, boxHeight)
                     esp.FilledBox.Visible = settings.FillEnabled
-                    esp.FilledBox.Color = settings.FillColor -- Ensure color is updated dynamically
-                    esp.FilledBox.Transparency = settings.FillTransparency -- Ensure transparency is updated dynamically
+                    esp.FilledBox.Color = settings.FillColor 
+                    esp.FilledBox.Transparency = settings.FillTransparency 
 
-                    -- 3. Inner box (Main Line Border) - Always visible if player is on screen
+                    -- 3. Inner box (Main Line Border)
                     esp.Box.Position = Vector2.new(boxX, boxYTop)
                     esp.Box.Size = Vector2.new(boxWidth, boxHeight)
-                    esp.Box.Visible = true
-                    esp.Box.Color = settings.BoxColor -- Ensure color is updated dynamically
+                    esp.Box.Visible = true -- Main border is always on if ESP is active
+                    esp.Box.Color = settings.BoxColor
 
                     -- Name
                     esp.Name.Text = player.Name
@@ -165,21 +165,65 @@ RunService.RenderStepped:Connect(function()
                     -- Tool
                     local toolName = tool and '[' .. tool.Name .. ']' or ''
                     esp.Tool.Text = toolName
-                    esp.Tool.Position =
-                        Vector2.new(centerX, footScreenPos.Y + 3)
+                    esp.Tool.Position = Vector2.new(centerX, footScreenPos.Y + 3)
                     esp.Tool.Visible = (tool ~= nil)
                 else
-                    -- Hide all drawings if player is off screen
+                    -- Player off screen: Hide all
                     for _, obj in pairs(esp) do
                         obj.Visible = false
                     end
                 end
             end
         elseif ESPObjects[player] then
-            -- Hide drawings if character is missing
+            -- Character missing: Hide all
             for _, obj in pairs(ESPObjects[player]) do
                 obj.Visible = false
             end
         end
     end
-end)
+end
+
+--// --- Global Toggle Functions ---
+
+local function StartESP()
+    if not RenderStepConnection then
+        -- We connect the UpdateESP function to the RenderStepped event
+        RenderStepConnection = RunService.RenderStepped:Connect(UpdateESP)
+        getgenv().ESPSettings.Enabled = true
+    end
+end
+
+local function StopESP()
+    if RenderStepConnection then
+        -- Disconnect the loop to stop rendering
+        RenderStepConnection:Disconnect()
+        RenderStepConnection = nil
+        getgenv().ESPSettings.Enabled = false
+    end
+    -- Immediately hide all drawings
+    HideAllESP()
+end
+
+-- Global function to toggle the ESP state
+getgenv().ToggleESP = function(enabled)
+    if enabled == true then
+        StartESP()
+    elseif enabled == false then
+        StopESP()
+    else
+        -- Toggle the current state if no argument is provided
+        if getgenv().ESPSettings.Enabled then
+            StopESP()
+        else
+            StartESP()
+        end
+    end
+end
+
+-- Initial setup: Check the starting state from settings
+if getgenv().ESPSettings.Enabled then
+    StartESP()
+end
+
+-- Ensure cleanup when players leave
+Players.PlayerRemoving:Connect(RemoveESP)
