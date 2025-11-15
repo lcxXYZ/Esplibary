@@ -5,10 +5,10 @@ getgenv().ESPSettings = {
 
     -- === FEATURE TOGGLES (Set to true/false) ===
     FillEnabled = false,
-    OutlineEnabled = true,
-    HealthEnabled = true,   -- TOGGLE: Enable/Disable the health bar
-    NameEnabled = true,     -- TOGGLE: Enable/Disable the player name text
-    DistanceEnabled = true, -- TOGGLE: Enable/Disable the distance display
+    OutlineEnabled = false,
+    HealthEnabled = false,   -- TOGGLE: Enable/Disable the health bar
+    NameEnabled = false,     -- TOGGLE: Enable/Disable the player name text
+    DistanceEnabled = false, -- TOGGLE: Enable/Disable the distance display
 
     -- === COLORS AND THICKNESS ===
     BoxColor = Color3.fromRGB(255, 255, 255), -- Main line/border color (White)
