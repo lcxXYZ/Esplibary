@@ -1,0 +1,185 @@
+--// Settings (This configuration section controls the look of the ESP)
+getgenv().ESPSettings = {
+    -- === BOX TOGGLES (New) ===
+    FillEnabled = true, -- Enable/Disable the transparent background fill
+    OutlineEnabled = true, -- Enable/Disable the black outline border
+
+    -- === BOX COLORS AND THICKNESS ===
+    BoxColor = Color3.fromRGB(255, 255, 255), -- Main line/border color (Currently White)
+    FillColor = Color3.fromRGB(0, 0, 0), -- Color of the transparent background fill (Currently Black)
+    OutlineColor = Color3.fromRGB(0, 0, 0), -- Color of the outer edge/outline (Typically Black)
+
+    BoxThickness = 1,
+    OutlineThickness = 1.5,
+    FillTransparency = 0.5, -- 0 is opaque, 1 is fully transparent
+
+    -- === TEXT SETTINGS ===
+    NameColor = Color3.fromRGB(255, 255, 255),
+    ToolColor = Color3.fromRGB(170, 0, 255),
+    Font = Drawing.Fonts.Plex,
+
+    -- === DIMENSION SETTINGS ===
+    -- Adjusts the vertical offset of the anchor point below the HumanoidRootPart.
+    FootOffset = 5,
+    -- Ratio of Height to Width (e.g., 1 means it's a perfect square)
+    WidthRatio = 1,
+}
+
+local Players = game:GetService('Players')
+local RunService = game:GetService('RunService')
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+local ESPObjects = {}
+
+--// ESP Visualization Creation and Management
+
+--// Create ESP visuals
+local function CreateESP(player)
+    local esp = {}
+
+    -- 1. Outline box (Black, outer border)
+    esp.BoxOutline = Drawing.new('Square')
+    esp.BoxOutline.Thickness = getgenv().ESPSettings.OutlineThickness
+    esp.BoxOutline.Filled = false
+    esp.BoxOutline.Color = getgenv().ESPSettings.OutlineColor
+    esp.BoxOutline.Transparency = 1
+    esp.BoxOutline.Visible = false
+
+    -- 2. Filled Box (Transparent Background)
+    esp.FilledBox = Drawing.new('Square')
+    esp.FilledBox.Thickness = 0
+    esp.FilledBox.Filled = true
+    esp.FilledBox.Color = getgenv().ESPSettings.FillColor -- Uses FillColor
+    esp.FilledBox.Transparency = getgenv().ESPSettings.FillTransparency
+    esp.FilledBox.Visible = false
+
+    -- 3. Inner box (Main Line Border)
+    esp.Box = Drawing.new('Square')
+    esp.Box.Thickness = getgenv().ESPSettings.BoxThickness
+    esp.Box.Filled = false
+    esp.Box.Color = getgenv().ESPSettings.BoxColor -- Uses BoxColor
+    esp.Box.Transparency = 1
+    esp.Box.Visible = false
+
+    -- Name tag
+    esp.Name = Drawing.new('Text')
+    esp.Name.Size = 14
+    esp.Name.Center = true
+    esp.Name.Outline = true
+    esp.Name.Font = getgenv().ESPSettings.Font
+    esp.Name.Color = getgenv().ESPSettings.NameColor
+    esp.Name.Visible = false
+
+    -- Tool tag
+    esp.Tool = Drawing.new('Text')
+    esp.Tool.Size = 14
+    esp.Tool.Center = true
+    esp.Tool.Outline = true
+    esp.Tool.Font = getgenv().ESPSettings.Font
+    esp.Tool.Color = getgenv().ESPSettings.ToolColor
+    esp.Tool.Visible = false
+
+    return esp
+end
+
+--// Cleanup
+local function RemoveESP(player)
+    if ESPObjects[player] then
+        for _, obj in pairs(ESPObjects[player]) do
+            obj:Remove()
+        end
+        ESPObjects[player] = nil
+    end
+end
+
+Players.PlayerRemoving:Connect(RemoveESP)
+
+--// Main Update Loop - Runs automatically when the script is executed
+RunService.RenderStepped:Connect(function()
+    local settings = getgenv().ESPSettings -- Get current settings once per frame
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if
+            player ~= LocalPlayer
+            and player.Character
+            and player.Character:FindFirstChild('HumanoidRootPart')
+        then
+            if not ESPObjects[player] then
+                ESPObjects[player] = CreateESP(player)
+            end
+
+            local esp = ESPObjects[player]
+            local char = player.Character
+            local hrp = char:FindFirstChild('HumanoidRootPart')
+            local head = char:FindFirstChild('Head')
+            local tool = char:FindFirstChildOfClass('Tool')
+
+            if hrp and head then
+                -- 1. Calculate the 3D position of the character's head and feet
+                local headPosition = head.Position
+                local footPosition = hrp.Position
+                    - Vector3.new(0, settings.FootOffset, 0)
+
+                -- 2. Convert positions to 2D screen coordinates
+                local headScreenPos, headOnScreen =
+                    Camera:WorldToViewportPoint(headPosition)
+                local footScreenPos, footOnScreen =
+                    Camera:WorldToViewportPoint(footPosition)
+
+                -- Check if player is on screen
+                if headOnScreen and footOnScreen then
+                    -- Calculate dynamic box dimensions
+                    local boxHeight = footScreenPos.Y - headScreenPos.Y
+                    local boxWidth = boxHeight * settings.WidthRatio
+
+                    -- Calculate Top-Left corner
+                    local boxX = headScreenPos.X - boxWidth / 2
+                    local boxYTop = headScreenPos.Y
+                    local centerX = headScreenPos.X
+
+                    -- 1. Outline (Black) - Toggleable
+                    esp.BoxOutline.Position = Vector2.new(boxX - 1, boxYTop - 1)
+                    esp.BoxOutline.Size =
+                        Vector2.new(boxWidth + 2, boxHeight + 2)
+                    esp.BoxOutline.Visible = settings.OutlineEnabled
+                    esp.BoxOutline.Color = settings.OutlineColor -- Ensure color is updated dynamically
+
+                    -- 2. Filled Box (Transparent) - Toggleable
+                    esp.FilledBox.Position = Vector2.new(boxX, boxYTop)
+                    esp.FilledBox.Size = Vector2.new(boxWidth, boxHeight)
+                    esp.FilledBox.Visible = settings.FillEnabled
+                    esp.FilledBox.Color = settings.FillColor -- Ensure color is updated dynamically
+                    esp.FilledBox.Transparency = settings.FillTransparency -- Ensure transparency is updated dynamically
+
+                    -- 3. Inner box (Main Line Border) - Always visible if player is on screen
+                    esp.Box.Position = Vector2.new(boxX, boxYTop)
+                    esp.Box.Size = Vector2.new(boxWidth, boxHeight)
+                    esp.Box.Visible = true
+                    esp.Box.Color = settings.BoxColor -- Ensure color is updated dynamically
+
+                    -- Name
+                    esp.Name.Text = player.Name
+                    esp.Name.Position = Vector2.new(centerX, boxYTop - 16)
+                    esp.Name.Visible = true
+
+                    -- Tool
+                    local toolName = tool and '[' .. tool.Name .. ']' or ''
+                    esp.Tool.Text = toolName
+                    esp.Tool.Position =
+                        Vector2.new(centerX, footScreenPos.Y + 3)
+                    esp.Tool.Visible = (tool ~= nil)
+                else
+                    -- Hide all drawings if player is off screen
+                    for _, obj in pairs(esp) do
+                        obj.Visible = false
+                    end
+                end
+            end
+        elseif ESPObjects[player] then
+            -- Hide drawings if character is missing
+            for _, obj in pairs(ESPObjects[player]) do
+                obj.Visible = false
+            end
+        end
+    end
+end)
