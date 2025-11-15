@@ -1,8 +1,11 @@
+--[[
+    S I M P L E E S P E X E C U T O R
+    
+    This script provides a basic ESP (Box, Health, Name, Distance) 
+    using Drawing objects, based on the original structure you provided.
+]]
 
--- ====================================================================
--- === 2. CONFIGURATION AND CONTROL (Accessible via getgenv()) ===
--- ====================================================================
-
+--// Configuration and Control (Accessible via getgenv())
 getgenv().ESPSettings = {
     -- === GLOBAL CONTROL ===
     Enabled = false, 
@@ -10,34 +13,18 @@ getgenv().ESPSettings = {
     -- === FEATURE TOGGLES (Set to true/false) ===
     FillEnabled = false,
     OutlineEnabled = false,
-    HealthEnabled = false,   
-    NameEnabled = false,     
-    DistanceEnabled = false,
-    
-    -- --- NEW ESP FEATURES ---
-    SkeletonEnabled = true,   -- TOGGLE: Enable/disable skeleton lines
-    WeaponEnabled = false,    -- TOGGLE: Enable/disable weapon tracer/indicator
-    ViewlineEnabled = true,   -- TOGGLE: Enable/disable view line
-    TeamCheck = false,        -- TOGGLE: Enable/disable checking if targets are on the same team
-    VisibleOnly = false,      -- TOGGLE: Enable/disable visibility check (requires Raycast)
-    
-    -- === DISTANCE & CHECK SETTINGS ===
-    MaxDistance = 500,        -- Maximum distance (in studs) for ESP to render
+    HealthEnabled = false,   -- TOGGLE: Enable/Disable the health bar
+    NameEnabled = false,     -- TOGGLE: Enable/Disable the player name text
+    DistanceEnabled = false, -- TOGGLE: Enable/Disable the distance display
 
     -- === COLORS AND THICKNESS ===
-    BoxColor = Color3.fromRGB(255, 255, 255), 
-    FillColor = Color3.fromRGB(0, 0, 0),    
-    OutlineColor = Color3.fromRGB(0, 0, 0), 
+    BoxColor = Color3.fromRGB(255, 255, 255), -- Main line/border color (White)
+    FillColor = Color3.fromRGB(0, 0, 0),    -- Color of the transparent background fill (Black)
+    OutlineColor = Color3.fromRGB(0, 0, 0), -- Color of the outer edge/outline (Black)
     
-    -- NEW COLOR/THICKNESS
-    SkeletonColor = Color3.fromRGB(255, 255, 255),
-    ViewlineColor = Color3.fromRGB(255, 0, 0),
-    WeaponColor = Color3.fromRGB(0, 255, 255),
-    SkeletonThickness = 1,
-
     BoxThickness = 1,
     OutlineThickness = 1.5,
-    FillTransparency = 0.5, 
+    FillTransparency = 0.5, -- 0 is opaque, 1 is fully transparent
 
     -- === TEXT SETTINGS ===
     NameColor = Color3.fromRGB(255, 255, 255),
@@ -55,18 +42,6 @@ local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 local ESPObjects = {}
 local RenderStepConnection = nil -- Stores the connection for the main loop
-
--- Defines the skeleton structure (part name pairs) for drawing lines
-local SKELETON_MAP = {
-    {"Head", "UpperTorso"}, -- Changed "Torso" to "UpperTorso" for better alignment in R15
-    {"UpperTorso", "RightUpperArm"}, {"UpperTorso", "LeftUpperArm"},
-    {"RightUpperArm", "RightLowerArm"}, {"LeftUpperArm", "LeftLowerArm"},
-    {"RightLowerArm", "RightHand"}, {"LeftLowerArm", "LeftHand"},
-    {"UpperTorso", "LowerTorso"}, -- Link upper and lower torso
-    {"LowerTorso", "RightUpperLeg"}, {"LowerTorso", "LeftUpperLeg"},
-    {"RightUpperLeg", "RightLowerLeg"}, {"LeftUpperLeg", "LeftLowerLeg"},
-    {"RightLowerLeg", "RightFoot"}, {"LeftLowerLeg", "LeftFoot"}
-}
 
 --// --- Utility Functions ---
 
@@ -143,37 +118,9 @@ local function CreateESP(player)
     esp.Distance.Font = settings.Font
     esp.Distance.Color = Color3.fromRGB(255, 255, 255)
     
-    -- 9. Skeleton Lines (New)
-    esp.Skeleton = {}
-    for i = 1, #SKELETON_MAP do
-        local line = Drawing.new('Line')
-        line.Color = settings.SkeletonColor
-        line.Thickness = settings.SkeletonThickness
-        line.Visible = false
-        table.insert(esp.Skeleton, line)
-    end
-    
-    -- 10. View Line (New)
-    esp.Viewline = Drawing.new('Line')
-    esp.Viewline.Color = settings.ViewlineColor
-    esp.Viewline.Thickness = 1
-    esp.Viewline.Visible = false
-    
-    -- 11. Weapon Tracer (Line from HRP to Tool) (New)
-    esp.WeaponTracer = Drawing.new('Line')
-    esp.WeaponTracer.Color = settings.WeaponColor
-    esp.WeaponTracer.Thickness = 1.5
-    esp.WeaponTracer.Visible = false
-    
     -- Ensure everything starts hidden
     for _, obj in pairs(esp) do
-        if type(obj) == 'table' then -- Handle nested Skeleton table
-            for _, line in pairs(obj) do
-                line.Visible = false
-            end
-        else
-            obj.Visible = false
-        end
+        obj.Visible = false
     end
 
     return esp
@@ -183,14 +130,7 @@ end
 local function RemoveESP(player)
     if ESPObjects[player] then
         for _, obj in pairs(ESPObjects[player]) do
-            -- Handle both single drawings and the nested Skeleton table
-            if type(obj) == 'table' then
-                for _, line in pairs(obj) do
-                    line:Remove()
-                end
-            else
-                obj:Remove()
-            end
+            obj:Remove()
         end
         ESPObjects[player] = nil
     end
@@ -200,14 +140,7 @@ end
 local function HideAllESP()
     for _, esp in pairs(ESPObjects) do
         for _, obj in pairs(esp) do
-            -- Handle both single drawings and the nested Skeleton table
-            if type(obj) == 'table' then
-                for _, line in pairs(obj) do
-                    line.Visible = false
-                end
-            else
-                obj.Visible = false
-            end
+            obj.Visible = false
         end
     end
 end
@@ -236,59 +169,13 @@ local function UpdateESP()
 
             if hrp and head and humanoid and hrpLocal then
                 
-                local shouldRender = true
-                local distance = (hrp.Position - hrpLocal.Position).Magnitude
-
-                -- === 1. Pre-Render Checks ===
-
-                -- Max Distance Check
-                if distance > settings.MaxDistance then
-                    shouldRender = false
-                end
-                
-                -- Team Check
-                if settings.TeamCheck and LocalPlayer.Team and player.Team and LocalPlayer.Team == player.Team then
-                    shouldRender = false
-                end
-                
-                -- Visibility Check (Raycasting from the camera to the target's Head)
-                local isVisible = true
-                if settings.VisibleOnly and shouldRender then
-                    local raycastParams = RaycastParams.new()
-                    -- Exclude the local player's character and the target's character to allow 'peeking' over walls
-                    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character, char}
-                    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-
-                    local raycastResult = workspace:Raycast(
-                        Camera.CFrame.p, 
-                        (head.Position - Camera.CFrame.p).unit * distance, 
-                        raycastParams
-                    )
-                    
-                    if raycastResult and raycastResult.Instance then
-                        -- If anything is hit, it means the target is blocked by something
-                        isVisible = false
-                    end
-                end
-
-                if settings.VisibleOnly and not isVisible then
-                    shouldRender = false
-                end
-
-
-                -- === Hide if checks fail, otherwise proceed ===
-                if not shouldRender then
-                    HideAllESP()
-                    goto continue_loop
-                end
-
-
-                -- 2. Calculate 3D positions and Screen positions
+                -- 1. Calculate 3D positions and Screen positions
                 local headPosition = head.Position
                 local footPosition = hrp.Position - Vector3.new(0, settings.FootOffset, 0)
                 local headScreenPos, headOnScreen = Camera:WorldToViewportPoint(headPosition)
                 local footScreenPos, footOnScreen = Camera:WorldToViewportPoint(footPosition)
-                
+                local distance = (hrp.Position - hrpLocal.Position).Magnitude
+
                 if headOnScreen and footOnScreen then
                     
                     -- Calculate dynamic box dimensions
@@ -358,7 +245,7 @@ local function UpdateESP()
                     esp.Name.Position = Vector2.new(centerX, boxYTop - 16)
                     esp.Name.Visible = settings.NameEnabled
 
-                    -- Tool (Bottom Center - uses original tool logic)
+                    -- Tool (Bottom Center)
                     local toolName = tool and '[' .. tool.Name .. ']' or ''
                     esp.Tool.Text = toolName
                     esp.Tool.Position = Vector2.new(centerX, footScreenPos.Y + 3)
@@ -375,94 +262,25 @@ local function UpdateESP()
                         esp.Distance.Visible = false
                     end
 
-
-                    -- === NEW FEATURE LOGIC ===
-
-                    -- SKELETON DRAWING
-                    if settings.SkeletonEnabled then
-                        for i, pair in ipairs(SKELETON_MAP) do
-                            local partA = char:FindFirstChild(pair[1])
-                            local partB = char:FindFirstChild(pair[2])
-                            
-                            if partA and partB and esp.Skeleton[i] then
-                                local posA, onScreenA = Camera:WorldToViewportPoint(partA.CFrame.p)
-                                local posB, onScreenB = Camera:WorldToViewportPoint(partB.CFrame.p)
-
-                                if onScreenA and onScreenB then
-                                    esp.Skeleton[i].Visible = true
-                                    esp.Skeleton[i].From = Vector2.new(posA.X, posA.Y)
-                                    esp.Skeleton[i].To = Vector2.new(posB.X, posB.Y)
-                                    -- Color and Thickness are set during CreateESP but can be changed here if needed
-                                else
-                                    esp.Skeleton[i].Visible = false
-                                end
-                            elseif esp.Skeleton[i] then
-                                esp.Skeleton[i].Visible = false
-                            end
-                        end
-                    else
-                        -- Hide all skeleton lines if feature is disabled
-                        for _, line in pairs(esp.Skeleton) do
-                            line.Visible = false
-                        end
-                    end
-
-
-                    -- VIEWLINE DRAWING (from Head to the point 100 studs in front of the Head)
-                    if settings.ViewlineEnabled and head then
-                        -- Project 100 studs forward from the head's look direction
-                        local targetPosition = head.CFrame.p + head.CFrame.LookVector * 100 
-                        
-                        local targetScreenPos, targetOnScreen = Camera:WorldToViewportPoint(targetPosition)
-                        
-                        if targetOnScreen then -- Only check the target point, Head is already on screen (headOnScreen is true)
-                            esp.Viewline.Visible = true
-                            esp.Viewline.From = Vector2.new(headScreenPos.X, headScreenPos.Y)
-                            esp.Viewline.To = Vector2.new(targetScreenPos.X, targetScreenPos.Y)
-                        else
-                            esp.Viewline.Visible = false
-                        end
-                    else
-                        esp.Viewline.Visible = false
-                    end
-
-
-                    -- WEAPON TRACER DRAWING (Line from HRP to Tool Handle)
-                    if settings.WeaponEnabled and hrp and tool then
-                        local toolHandle = tool:FindFirstChild("Handle")
-                        if toolHandle then
-                            local hrpScreenPos, hrpOnScreen = Camera:WorldToViewportPoint(hrp.CFrame.p)
-                            local toolScreenPos, toolOnScreen = Camera:WorldToViewportPoint(toolHandle.CFrame.p)
-
-                            if hrpOnScreen and toolScreenPos then
-                                esp.WeaponTracer.Visible = true
-                                esp.WeaponTracer.From = Vector2.new(hrpScreenPos.X, hrpScreenPos.Y)
-                                esp.WeaponTracer.To = Vector2.new(toolScreenPos.X, toolScreenPos.Y)
-                            else
-                                esp.WeaponTracer.Visible = false
-                            end
-                        else
-                            esp.WeaponTracer.Visible = false
-                        end
-                    else
-                        esp.WeaponTracer.Visible = false
-                    end
-                    -- === END NEW FEATURE LOGIC ===
-
-
                 else
                     -- Player off screen: Hide all
-                    HideAllESP()
+                    for _, obj in pairs(esp) do
+                        obj.Visible = false
+                    end
                 end
             else
                 -- Character or necessary parts missing: Hide all
-                HideAllESP()
+                if ESPObjects[player] then
+                    for _, obj in pairs(esp) do
+                        obj.Visible = false
+                    end
+                end
             end
-
-            ::continue_loop::
         elseif ESPObjects[player] then
             -- Player missing or not targetable: Hide all
-            HideAllESP()
+            for _, obj in pairs(ESPObjects[player]) do
+                obj.Visible = false
+            end
         end
     end
 end
