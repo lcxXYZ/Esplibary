@@ -1,0 +1,107 @@
+--// All-in-One Gun Mods Script (No Double Tap)
+-- Uses getgenv() toggles for easy on/off
+
+-- Initialize global settings
+getgenv().Cheat = getgenv().Cheat or {}
+getgenv().Cheat.Options = getgenv().Cheat.Options or {}
+getgenv().Cheat.Options.GunMods = getgenv().Cheat.Options.GunMods or {}
+
+-- Toggle options
+getgenv().Cheat.Options.GunMods.NoRecoil = true
+getgenv().Cheat.Options.GunMods.NoBobbing = true
+getgenv().Cheat.Options.GunMods.NoSway = true
+getgenv().Cheat.Options.GunMods.InstantLean = true
+getgenv().Cheat.Options.GunMods.NoSprintOffset = true
+getgenv().Cheat.Options.GunMods.UnlockFiremodes = true  -- Unlocks all firemodes
+
+-- References
+local Players = game:GetService("Players")
+local Client = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local GameFramework = {}
+
+-- Utility: Find GameFramework tables
+local function SetupGameFramework()
+    for _, obj in next, getgc(true) do
+        if type(obj) == "table" then
+            if rawget(obj, "updateClient") then
+                GameFramework.FPS = obj
+            end
+            if rawget(obj, "springs") and rawget(obj.springs, "sway") then
+                GameFramework.CurrentData = obj
+            end
+        end
+    end
+
+    if GameFramework.FPS and GameFramework.CurrentData then
+        local OldUpdateClient = GameFramework.FPS.updateClient
+        GameFramework.FPS.updateClient = function(...)
+            local Args = {...}
+            local WeaponData = Args[1]
+            local Springs = GameFramework.CurrentData.springs
+
+            if Springs then
+                if getgenv().Cheat.Options.GunMods.InstantLean then
+                    Springs.leanAlpha.Force = 25
+                    Springs.leanAlpha.Speed = 50
+                end
+                if getgenv().Cheat.Options.GunMods.NoBobbing then
+                    Springs.jumpTilt.Force = 0
+                    Springs.jumpTilt.Speed = 0
+                    Springs.walkCycle.Force = 0
+                    Springs.walkCycle.Speed = 0
+                    Springs.sprintCycle.Force = 0
+                    Springs.sprintCycle.Speed = 0
+                    Springs.strafeTilt.Force = 0
+                    Springs.strafeTilt.Speed = 0
+                end
+                if getgenv().Cheat.Options.GunMods.NoRecoil then
+                    Springs.cameraRecoil.Force = 0
+                    Springs.cameraRecoil.Speed = 0
+                    Springs.recoilRot.Force = 0
+                    Springs.recoilRot.Speed = 0
+                end
+                if getgenv().Cheat.Options.GunMods.NoSway then
+                    Springs.sway.Position = Vector3.new(0,0,0)
+                    Springs.sway.Speed = 0
+                end
+            end
+
+            if WeaponData then
+                if getgenv().Cheat.Options.GunMods.UnlockFiremodes and rawget(WeaponData, "FireModes") then
+                    WeaponData.FireModes = {"Auto", "Semi"}
+                end
+            end
+
+            return OldUpdateClient(unpack(Args))
+        end
+    end
+end
+
+SetupGameFramework()
+
+Client.CharacterAdded:Connect(function()
+    GameFramework.CurrentData = nil
+    task.wait(3)
+    repeat task.wait() until Client.Character and Client.Character:FindFirstChildOfClass("Humanoid")
+    SetupGameFramework()
+end)
+
+-- No Sprint Offset Hook
+local MT = getrawmetatable(game)
+setreadonly(MT, false)
+local OldNamecall = MT.__namecall
+MT.__namecall = newcclosure(function(self, ...)
+    local Args = {...}
+    local Method = getnamecallmethod()
+
+    if Method == "GetAttribute" and self.Name == "Sprinting" and Args[1] == "Value" then
+        if getgenv().Cheat.Options.GunMods.NoSprintOffset then
+            return false
+        end
+    end
+
+    return OldNamecall(self, ...)
+end)
+setreadonly(MT, true)
