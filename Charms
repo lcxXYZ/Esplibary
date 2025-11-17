@@ -1,0 +1,90 @@
+-- Default getgenv config
+if not getgenv().ESPConfig then
+    getgenv().ESPConfig = {
+        Enabled = true,                        -- turn ESP on/off
+        HighlightSelf = true,                  -- highlight yourself
+        CharmMode = "Pulsing",                 -- "Highlight" or "Pulsing"
+        PulseSpeed = 2,                        -- speed of pulsing
+        FillColor = Color3.fromRGB(255,150,200),
+        OutlineColor = Color3.fromRGB(255,100,180),
+        OutlineEnabled = true                   -- turn outline on/off
+    }
+end
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Create highlight for a character
+local function addHighlight(char)
+    if not char:FindFirstChild("ESP_Highlight") then
+        local h = Instance.new("Highlight")
+        h.Name = "ESP_Highlight"
+        h.Parent = char
+        h.FillColor = getgenv().ESPConfig.FillColor
+        h.OutlineColor = getgenv().ESPConfig.OutlineColor
+        h.FillTransparency = 0.5
+        h.OutlineTransparency = getgenv().ESPConfig.OutlineEnabled and 0 or 1
+    end
+end
+
+-- Remove highlight
+local function removeHighlight(char)
+    local h = char:FindFirstChild("ESP_Highlight")
+    if h then h:Destroy() end
+end
+
+-- Pulse / update loop
+local pulse = 0
+RunService.RenderStepped:Connect(function(dt)
+    if not getgenv().ESPConfig.Enabled then return end
+    pulse = pulse + dt * (getgenv().ESPConfig.PulseSpeed or 2)
+    local pulseValue = (math.sin(pulse) + 1) / 2 -- 0..1
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Character then
+            if plr == LocalPlayer and not getgenv().ESPConfig.HighlightSelf then continue end
+
+            local h = plr.Character:FindFirstChild("ESP_Highlight")
+            if h then
+                -- Update colors from getgenv
+                h.FillColor = getgenv().ESPConfig.FillColor
+                h.OutlineColor = getgenv().ESPConfig.OutlineColor
+                h.OutlineTransparency = getgenv().ESPConfig.OutlineEnabled and
+                    (getgenv().ESPConfig.CharmMode == "Pulsing" and pulseValue * 0.2 or 0) or 1
+
+                if getgenv().ESPConfig.CharmMode == "Pulsing" then
+                    h.FillTransparency = 0.3 + pulseValue * 0.4
+                else
+                    h.FillTransparency = 0.3
+                end
+            end
+        end
+    end
+end)
+
+-- Add highlight when players spawn
+local function onPlayerAdded(plr)
+    if plr.Character then
+        if plr ~= LocalPlayer or getgenv().ESPConfig.HighlightSelf then
+            addHighlight(plr.Character)
+        end
+    end
+    plr.CharacterAdded:Connect(function(char)
+        if plr ~= LocalPlayer or getgenv().ESPConfig.HighlightSelf then
+            addHighlight(char)
+        end
+    end)
+end
+
+-- Initialize existing players
+for _, plr in ipairs(Players:GetPlayers()) do
+    onPlayerAdded(plr)
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+Players.PlayerRemoving:Connect(function(plr)
+    if plr.Character then
+        removeHighlight(plr.Character)
+    end
+end)
