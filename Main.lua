@@ -1,38 +1,40 @@
 --[[
     S I M P L E E S P E X E C U T O R
     
-    This script provides a basic ESP (Box, Health, Name, Distance) 
+    This script provides a basic ESP (Box, Health, Name, Distance, Equipped Item) 
     using Drawing objects.
     
-    -- CONFIGURATION NOTE --
-    All features (Enabled, Fill, Outline, Health, Name, Distance) 
-    are now set to TRUE by default as requested.
+    -- UPDATES --
+    1. Ensured health bar rendering logic is robust.
+    2. Added dedicated Equipped Item ESP (ItemNameEnabled).
+    3. All features are enabled by default.
 ]]
 
 --// Configuration and Control (Accessible via getgenv())
 getgenv().ESPSettings = {
     -- === GLOBAL CONTROL ===
-    Enabled = false, -- AUTO-ENABLED
+    Enabled = true, 
 
     -- === FEATURE TOGGLES (Set to true/false) ===
-    FillEnabled = false, -- AUTO-ENABLED
-    OutlineEnabled = false, -- AUTO-ENABLED
-    HealthEnabled = false, -- AUTO-ENABLED: Enable/Disable the health bar
-    NameEnabled = false, -- AUTO-ENABLED: Enable/Disable the player name text
-    DistanceEnabled = false, -- AUTO-ENABLED: Enable/Disable the distance display
+    FillEnabled = true,      
+    OutlineEnabled = true,   
+    HealthEnabled = true,    -- Enable/Disable the health bar
+    NameEnabled = true,      -- Enable/Disable the player name text
+    DistanceEnabled = true,  -- Enable/Disable the distance display
+    EquippedItemEnabled = true, -- NEW: Enable/Disable the equipped item name display
 
     -- === COLORS AND THICKNESS ===
     BoxColor = Color3.fromRGB(255, 255, 255), -- Main line/border color (White)
-    FillColor = Color3.fromRGB(0, 0, 0), -- Color of the transparent background fill (Black)
+    FillColor = Color3.fromRGB(0, 0, 0),     -- Color of the transparent background fill (Black)
     OutlineColor = Color3.fromRGB(0, 0, 0), -- Color of the outer edge/outline (Black)
-
+    
     BoxThickness = 1,
     OutlineThickness = 1.5,
-    FillTransparency = 0.3, -- 0 is opaque, 1 is fully transparent
+    FillTransparency = 0.5, -- 0 is opaque, 1 is fully transparent
 
     -- === TEXT SETTINGS ===
     NameColor = Color3.fromRGB(255, 255, 255),
-    ToolColor = Color3.fromRGB(170, 0, 255),
+    EquippedItemColor = Color3.fromRGB(170, 0, 255), -- Color for the equipped item name
     Font = Drawing.Fonts.Plex,
 
     -- === DIMENSION AND SHIFT SETTINGS ===
@@ -84,20 +86,20 @@ local function CreateESP(player)
     esp.Box.Filled = false
     esp.Box.Color = settings.BoxColor
     esp.Box.Transparency = 1
-
+    
     -- 4. Health Bar Outline
     esp.HealthBarOutline = Drawing.new('Square')
     esp.HealthBarOutline.Thickness = 1
     esp.HealthBarOutline.Filled = false
     esp.HealthBarOutline.Color = Color3.fromRGB(0, 0, 0)
     esp.HealthBarOutline.Transparency = 1
-
+    
     -- 5. Health Bar Fill
     esp.HealthBarFill = Drawing.new('Square')
     esp.HealthBarFill.Thickness = 0
     esp.HealthBarFill.Filled = true
     esp.HealthBarFill.Color = Color3.fromRGB(0, 255, 0)
-    esp.HealthBarFill.Transparency = 0
+    esp.HealthBarFill.Transparency = 0 -- Should be opaque
 
     -- 6. Name tag
     esp.Name = Drawing.new('Text')
@@ -107,14 +109,14 @@ local function CreateESP(player)
     esp.Name.Font = settings.Font
     esp.Name.Color = settings.NameColor
 
-    -- 7. Tool tag
-    esp.Tool = Drawing.new('Text')
-    esp.Tool.Size = 14
-    esp.Tool.Center = true
-    esp.Tool.Outline = true
-    esp.Tool.Font = settings.Font
-    esp.Tool.Color = settings.ToolColor
-
+    -- 7. Equipped Item tag (Formerly esp.Tool)
+    esp.EquippedItem = Drawing.new('Text')
+    esp.EquippedItem.Size = 14
+    esp.EquippedItem.Center = true
+    esp.EquippedItem.Outline = true
+    esp.EquippedItem.Font = settings.Font
+    esp.EquippedItem.Color = settings.EquippedItemColor
+    
     -- 8. Distance Text
     esp.Distance = Drawing.new('Text')
     esp.Distance.Size = 13
@@ -122,7 +124,7 @@ local function CreateESP(player)
     esp.Distance.Outline = true
     esp.Distance.Font = settings.Font
     esp.Distance.Color = Color3.fromRGB(255, 255, 255)
-
+    
     -- Ensure everything starts hidden
     for _, obj in pairs(esp) do
         obj.Visible = false
@@ -154,8 +156,7 @@ end
 local function UpdateESP()
     local settings = getgenv().ESPSettings
     local shift = settings.BoxVerticalShiftPixels or 0
-    local hrpLocal = LocalPlayer.Character
-        and LocalPlayer.Character:FindFirstChild('HumanoidRootPart')
+    local hrpLocal = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild('HumanoidRootPart')
 
     for _, player in pairs(Players:GetPlayers()) do
         if
@@ -172,20 +173,20 @@ local function UpdateESP()
             local hrp = char:FindFirstChild('HumanoidRootPart')
             local head = char:FindFirstChild('Head')
             local humanoid = char:FindFirstChildOfClass('Humanoid')
-            local tool = char:FindFirstChildOfClass('Tool')
+            -- Check for an equipped tool (subclass of Tool)
+            local tool = player.Character:FindFirstChildOfClass('Tool')
 
             if hrp and head and humanoid and hrpLocal then
+                
                 -- 1. Calculate 3D positions and Screen positions
                 local headPosition = head.Position
-                local footPosition = hrp.Position
-                    - Vector3.new(0, settings.FootOffset, 0)
-                local headScreenPos, headOnScreen =
-                    Camera:WorldToViewportPoint(headPosition)
-                local footScreenPos, footOnScreen =
-                    Camera:WorldToViewportPoint(footPosition)
+                local footPosition = hrp.Position - Vector3.new(0, settings.FootOffset, 0)
+                local headScreenPos, headOnScreen = Camera:WorldToViewportPoint(headPosition)
+                local footScreenPos, footOnScreen = Camera:WorldToViewportPoint(footPosition)
                 local distance = (hrp.Position - hrpLocal.Position).Magnitude
 
                 if headOnScreen and footOnScreen then
+                    
                     -- Apply the vertical shift (Y decreases to move UP)
                     local boxYTop = headScreenPos.Y - shift
                     local boxYBottom = footScreenPos.Y - shift
@@ -199,53 +200,50 @@ local function UpdateESP()
                     local centerX = headScreenPos.X
 
                     -- === BOX ELEMENTS ===
-
+                    
                     -- Outline (Black)
                     esp.BoxOutline.Position = Vector2.new(boxX - 1, boxYTop - 1)
-                    esp.BoxOutline.Size =
-                        Vector2.new(boxWidth + 2, boxHeight + 2)
+                    esp.BoxOutline.Size = Vector2.new(boxWidth + 2, boxHeight + 2)
                     esp.BoxOutline.Visible = settings.OutlineEnabled
-                    esp.BoxOutline.Color = settings.OutlineColor
+                    esp.BoxOutline.Color = settings.OutlineColor 
 
                     -- Filled Box (Transparent)
                     esp.FilledBox.Position = Vector2.new(boxX, boxYTop)
                     esp.FilledBox.Size = Vector2.new(boxWidth, boxHeight)
                     esp.FilledBox.Visible = settings.FillEnabled
-                    esp.FilledBox.Color = settings.FillColor
-                    esp.FilledBox.Transparency = settings.FillTransparency
+                    esp.FilledBox.Color = settings.FillColor 
+                    esp.FilledBox.Transparency = settings.FillTransparency 
 
                     -- Inner box (Main Line Border)
                     esp.Box.Position = Vector2.new(boxX, boxYTop)
                     esp.Box.Size = Vector2.new(boxWidth, boxHeight)
-                    esp.Box.Visible = true
+                    esp.Box.Visible = true 
                     esp.Box.Color = settings.BoxColor
 
                     -- === HEALTH BAR (Left of the box) ===
                     local health = humanoid.Health
                     local maxHealth = humanoid.MaxHealth
-                    local healthRatio = health / maxHealth
-                    local healthColor = GetHealthColor(health, maxHealth)
-
+                    local isHealthVisible = settings.HealthEnabled and (maxHealth > 0)
+                    
                     local barWidth = 4
                     local barSpacing = 3
                     local barX = boxX - barWidth - barSpacing
 
-                    local fillHeight = boxHeight * healthRatio
-                    -- Vertical position of the fill is anchored to the bottom of the bar
-                    local fillY = boxYTop + (boxHeight - fillHeight)
+                    if isHealthVisible then
+                        local healthRatio = health / maxHealth
+                        local healthColor = GetHealthColor(health, maxHealth)
+                        local fillHeight = boxHeight * healthRatio
+                        -- Vertical position of the fill is anchored to the bottom of the bar
+                        local fillY = boxYTop + (boxHeight - fillHeight) 
 
-                    if settings.HealthEnabled then
                         -- Outline (full size)
-                        esp.HealthBarOutline.Position =
-                            Vector2.new(barX, boxYTop)
-                        esp.HealthBarOutline.Size =
-                            Vector2.new(barWidth, boxHeight)
+                        esp.HealthBarOutline.Position = Vector2.new(barX, boxYTop)
+                        esp.HealthBarOutline.Size = Vector2.new(barWidth, boxHeight)
                         esp.HealthBarOutline.Visible = true
-
+                        
                         -- Fill (dynamic size)
                         esp.HealthBarFill.Position = Vector2.new(barX, fillY)
-                        esp.HealthBarFill.Size =
-                            Vector2.new(barWidth, fillHeight)
+                        esp.HealthBarFill.Size = Vector2.new(barWidth, fillHeight)
                         esp.HealthBarFill.Color = healthColor
                         esp.HealthBarFill.Visible = true
                     else
@@ -253,32 +251,34 @@ local function UpdateESP()
                         esp.HealthBarFill.Visible = false
                     end
 
-                    -- === NAME & TOOL TEXT ===
-
-                    -- Name (Top Center)
+                    -- === NAME TEXT (Top Center) ===
                     esp.Name.Text = player.Name
                     esp.Name.Position = Vector2.new(centerX, boxYTop - 16) -- Positioned relative to the shifted box top
                     esp.Name.Visible = settings.NameEnabled
 
-                    -- Tool (Bottom Center)
-                    local toolName = tool and '[' .. tool.Name .. ']' or ''
-                    esp.Tool.Text = toolName
-                    esp.Tool.Position = Vector2.new(centerX, boxYBottom + 3) -- Positioned relative to the shifted box bottom
-                    esp.Tool.Visible = (tool ~= nil)
-
+                    -- === EQUIPPED ITEM TEXT (Bottom Center) ===
+                    local equippedItemName = tool and '[' .. tool.Name .. ']' or ''
+                    
+                    if settings.EquippedItemEnabled and tool then
+                        esp.EquippedItem.Text = equippedItemName
+                        -- Positioned below the distance text/box bottom (using a fixed offset)
+                        esp.EquippedItem.Position = Vector2.new(centerX, boxYBottom + 16) 
+                        esp.EquippedItem.Visible = true
+                    else
+                        esp.EquippedItem.Visible = false
+                    end
+                    
                     -- === DISTANCE TEXT (Bottom Right of the box) ===
                     if settings.DistanceEnabled then
-                        local distanceText = string.format('%.0f m', distance)
+                        local distanceText = string.format("%.0f m", distance)
                         esp.Distance.Text = distanceText
                         -- Positioned relative to the shifted box
-                        esp.Distance.Position = Vector2.new(
-                            boxX + boxWidth + 5,
-                            boxYTop + boxHeight - 16
-                        )
+                        esp.Distance.Position = Vector2.new(boxX + boxWidth + 5, boxYTop + boxHeight - 16)
                         esp.Distance.Visible = true
                     else
                         esp.Distance.Visible = false
                     end
+
                 else
                     -- Player off screen: Hide all
                     for _, obj in pairs(esp) do
@@ -295,9 +295,7 @@ local function UpdateESP()
             end
         elseif ESPObjects[player] then
             -- Player missing or not targetable: Hide all
-            for _, obj in pairs(ESPObjects[player]) do
-                obj.Visible = false
-            end
+            RemoveESP(player) -- Use the cleaner remove function
         end
     end
 end
@@ -308,6 +306,7 @@ local function StartESP()
     if not RenderStepConnection then
         RenderStepConnection = RunService.RenderStepped:Connect(UpdateESP)
         getgenv().ESPSettings.Enabled = true
+        print("ESP Started and Active.")
     end
 end
 
@@ -316,6 +315,7 @@ local function StopESP()
         RenderStepConnection:Disconnect()
         RenderStepConnection = nil
         getgenv().ESPSettings.Enabled = false
+        print("ESP Stopped.")
     end
     HideAllESP()
 end
