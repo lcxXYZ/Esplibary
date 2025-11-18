@@ -1,0 +1,75 @@
+-- SETTINGS
+getgenv().Tracers = true
+getgenv().TracerColor1 = Color3.fromRGB(119,120,255)  -- start color
+getgenv().TracerColor2 = Color3.fromRGB(255,255,255)  -- end color
+getgenv().TracerFadeTime = 0.5
+getgenv().TracerMaterial = "Neon" -- "Neon" or "ForceField"
+
+-- MODULE
+local RS = game:GetService("ReplicatedStorage")
+local BulletModule = require(RS.Modules.FPS.Bullet)
+local oldCreate = BulletModule.CreateBullet
+
+-- FADE OUT
+local function fade(part)
+    task.spawn(function()
+        local steps = 20
+        local delay = getgenv().TracerFadeTime / steps
+
+        for i = 1, steps do
+            part.Transparency = i/steps
+            task.wait(delay)
+        end
+
+        part:Destroy()
+    end)
+end
+
+-- CREATE GRADIENT TRACER USING TWO PARTS
+local function makeTracer(fromPos, toPos)
+    if not getgenv().Tracers then return end
+    
+    local dist = (toPos - fromPos).Magnitude
+    local mid = (fromPos + toPos) / 2
+
+    -- MAIN TRACER
+    local tracer = Instance.new("Part")
+    tracer.Anchored = true
+    tracer.CanCollide = false
+    tracer.Size = Vector3.new(0.1, 0.1, dist)
+    tracer.CFrame = CFrame.new(fromPos, toPos) * CFrame.new(0,0,-dist/2)
+    tracer.Material = getgenv().TracerMaterial == "ForceField" and Enum.Material.ForceField or Enum.Material.Neon
+    tracer.Color = getgenv().TracerColor1
+    tracer.Transparency = 0
+    tracer.Parent = workspace
+
+    -- SECOND PART FOR GRADIENT
+    local tracer2 = Instance.new("Part")
+    tracer2.Anchored = true
+    tracer2.CanCollide = false
+    tracer2.Size = Vector3.new(0.12, 0.12, dist * 0.5)
+    tracer2.CFrame = CFrame.new(mid, toPos)
+    tracer2.Material = tracer.Material
+    tracer2.Color = getgenv().TracerColor2
+    tracer2.Transparency = 0.2
+    tracer2.Parent = workspace
+
+    fade(tracer)
+    fade(tracer2)
+end
+
+-- HOOK BULLET
+BulletModule.CreateBullet = function(...)
+    local args = {...}
+    local data = args[5]
+
+    if data and data.CFrame then
+        local origin = data.CFrame.Position
+        local target = origin + data.CFrame.LookVector * 2000
+        makeTracer(origin, target)
+    end
+
+    return oldCreate(...)
+end
+
+print("[Tracer System Loaded | Neon/ForceField + Gradient + Fade]")
