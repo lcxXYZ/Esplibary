@@ -1,27 +1,44 @@
---// All-in-One Gun Mods Script (No Double Tap)
--- Uses getgenv() toggles for easy on/off
+--// Combined Gun Mods + Tracer + Viewmodel Script
 
--- Initialize global settings
+-- ===== GLOBAL SETTINGS =====
 getgenv().Cheat = getgenv().Cheat or {}
 getgenv().Cheat.Options = getgenv().Cheat.Options or {}
 getgenv().Cheat.Options.GunMods = getgenv().Cheat.Options.GunMods or {}
 
--- Toggle options
+-- Gun mod toggles
 getgenv().Cheat.Options.GunMods.NoRecoil = true
 getgenv().Cheat.Options.GunMods.NoBobbing = true
 getgenv().Cheat.Options.GunMods.NoSway = true
 getgenv().Cheat.Options.GunMods.InstantLean = true
 getgenv().Cheat.Options.GunMods.NoSprintOffset = true
-getgenv().Cheat.Options.GunMods.UnlockFiremodes = true  -- Unlocks all firemodes
+getgenv().Cheat.Options.GunMods.UnlockFiremodes = true
 
--- References
+-- ===== TRACER SETTINGS =====
+getgenv().Tracers = false
+getgenv().TracerColor1 = Color3.fromRGB(119, 120, 255)
+getgenv().TracerColor2 = Color3.fromRGB(255, 255, 255)
+getgenv().TracerFadeTime = 0.5
+getgenv().TracerMaterial = 'Neon'
+
+-- ===== VIEWMODEL SETTINGS =====
+getgenv().viewmodbool = false
+getgenv().viewmodhandcolor = Color3.fromRGB(255, 255, 255)
+getgenv().viewmodhandmat = Enum.Material.ForceField
+getgenv().viewmodguncolor = Color3.fromRGB(0, 0, 0)
+getgenv().viewmodgunmat = Enum.Material.Neon
+
+-- ===== REFERENCES =====
 local Players = game:GetService("Players")
 local Client = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService('RunService')
 local GameFramework = {}
 
--- Utility: Find GameFramework tables
+--==============================================--
+--                GUN MOD HOOKS                --
+--==============================================--
+
 local function SetupGameFramework()
     for _, obj in next, getgc(true) do
         if type(obj) == "table" then
@@ -36,6 +53,7 @@ local function SetupGameFramework()
 
     if GameFramework.FPS and GameFramework.CurrentData then
         local OldUpdateClient = GameFramework.FPS.updateClient
+
         GameFramework.FPS.updateClient = function(...)
             local Args = {...}
             local WeaponData = Args[1]
@@ -68,10 +86,8 @@ local function SetupGameFramework()
                 end
             end
 
-            if WeaponData then
-                if getgenv().Cheat.Options.GunMods.UnlockFiremodes and rawget(WeaponData, "FireModes") then
-                    WeaponData.FireModes = {"Auto", "Semi"}
-                end
+            if WeaponData and getgenv().Cheat.Options.GunMods.UnlockFiremodes and rawget(WeaponData, "FireModes") then
+                WeaponData.FireModes = {"Auto", "Semi"}
             end
 
             return OldUpdateClient(unpack(Args))
@@ -88,10 +104,11 @@ Client.CharacterAdded:Connect(function()
     SetupGameFramework()
 end)
 
--- No Sprint Offset Hook
+-- ===== No Sprint Offset =====
 local MT = getrawmetatable(game)
 setreadonly(MT, false)
 local OldNamecall = MT.__namecall
+
 MT.__namecall = newcclosure(function(self, ...)
     local Args = {...}
     local Method = getnamecallmethod()
@@ -105,3 +122,101 @@ MT.__namecall = newcclosure(function(self, ...)
     return OldNamecall(self, ...)
 end)
 setreadonly(MT, true)
+
+--==============================================--
+--               TRACER SYSTEM                  --
+--==============================================--
+
+local RS = ReplicatedStorage
+local BulletModule = require(RS.Modules.FPS.Bullet)
+local oldCreate = BulletModule.CreateBullet
+
+local function fade(part)
+    task.spawn(function()
+        local steps = 20
+        local delay = getgenv().TracerFadeTime / steps
+
+        for i = 1, steps do
+            part.Transparency = i / steps
+            task.wait(delay)
+        end
+
+        part:Destroy()
+    end)
+end
+
+local function makeTracer(fromPos, toPos)
+    if not getgenv().Tracers then return end
+
+    local dist = (toPos - fromPos).Magnitude
+    local mid = (fromPos + toPos) / 2
+
+    local tracer = Instance.new('Part')
+    tracer.Anchored = true
+    tracer.CanCollide = false
+    tracer.Size = Vector3.new(0.1, 0.1, dist)
+    tracer.CFrame = CFrame.new(fromPos, toPos) * CFrame.new(0, 0, -dist / 2)
+    tracer.Material = (getgenv().TracerMaterial == 'ForceField' and Enum.Material.ForceField or Enum.Material.Neon)
+    tracer.Color = getgenv().TracerColor1
+    tracer.Parent = workspace
+
+    local tracer2 = Instance.new('Part')
+    tracer2.Anchored = true
+    tracer2.CanCollide = false
+    tracer2.Size = Vector3.new(0.12, 0.12, dist * 0.5)
+    tracer2.CFrame = CFrame.new(mid, toPos)
+    tracer2.Material = tracer.Material
+    tracer2.Color = getgenv().TracerColor2
+    tracer2.Transparency = 0.2
+    tracer2.Parent = workspace
+
+    fade(tracer)
+    fade(tracer2)
+end
+
+BulletModule.CreateBullet = function(...)
+    local args = {...}
+    local data = args[5]
+
+    if data and data.CFrame then
+        local origin = data.CFrame.Position
+        local target = origin + data.CFrame.LookVector * 2000
+        makeTracer(origin, target)
+    end
+
+    return oldCreate(...)
+end
+
+--==============================================--
+--              VIEWMODEL SYSTEM                --
+--==============================================--
+
+local wcamera = workspace.CurrentCamera
+
+local function handleViewModel()
+    if getgenv().viewmodbool and wcamera:FindFirstChild('ViewModel') then
+        for _, obj in pairs(wcamera.ViewModel:GetDescendants()) do
+            if obj:IsA('BasePart') then
+                local mb = obj:FindFirstChildOfClass('SurfaceAppearance')
+                if mb then mb:Destroy() end
+
+                if not obj:FindFirstAncestor('Item') then
+                    obj.Color = getgenv().viewmodhandcolor
+                    obj.Material = getgenv().viewmodhandmat
+                else
+                    obj.Color = getgenv().viewmodguncolor
+                    obj.Material = getgenv().viewmodgunmat
+                end
+
+            elseif obj:IsA('Model') and obj:FindFirstChild('LL') then
+                obj:Destroy()
+            end
+        end
+    end
+end
+
+RunService.RenderStepped:Connect(function()
+    handleViewModel()
+end)
+
+print('[Combined Gun Mods + Tracer + ViewModel Loaded]')
