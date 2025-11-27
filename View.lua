@@ -1,11 +1,10 @@
 getgenv().Settings = {
-    -- IMPORTANT: You must manually change this value to 'true' or 'false'
-    -- outside of this script's execution to toggle the zoom.
-    IsZooming = false,          -- Set to 'true' for 30 FOV, 'false' for 120 FOV
+    -- Your UI should set this value to 'true' or 'false'
+    IsZooming = false, 	 	 	 	-- Current state (False = Wide FOV, True = Zoom FOV)
 
     -- === FOV Values ===
-    DesiredFOV = 120,           -- Wide FOV when IsZooming is false
-    ZoomFOV = 30,               -- Tight FOV when IsZooming is true
+    DesiredFOV = 120,	 	 	 	-- Wide FOV when IsZooming is false
+    ZoomFOV = 30,	 	 	 	 	-- Tight FOV when IsZooming is true
 }
 
 local RunService = game:GetService('RunService')
@@ -18,9 +17,10 @@ local Settings = getgenv().Settings
 local function UpdateFOV()
     local camera = Workspace.CurrentCamera
     
+    -- Ensure the camera object exists before trying to access its properties
     if camera and camera:IsA("Camera") then
         
-        -- Check the state of the IsZooming variable to determine the FOV
+        -- Determine the target FOV based on the current state of IsZooming
         local targetFOV
         if Settings.IsZooming then
             targetFOV = Settings.ZoomFOV  -- 30
@@ -37,10 +37,12 @@ end
 
 local function Initialize()
     
-    -- Connect the update function to run every frame (RenderStepped)
-    -- This ensures the FOV stays enforced based on the IsZooming state.
+    -- Connect the update function to run every frame (RenderStepped).
+    -- This is essential because it constantly reads the 'IsZooming' state 
+    -- set by your UI and applies the corresponding FOV instantly.
     RunService.RenderStepped:Connect(UpdateFOV)
-    print("FOV Enforcer initialized. FOV is being set based on getgenv().Settings.IsZooming.")
+    
+    print("FOV Enforcer initialized and linked to getgenv().Settings.IsZooming.")
 end
 
 Initialize()
