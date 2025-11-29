@@ -4,12 +4,12 @@
 if not getgenv().ESP_SETTINGS then
     getgenv().ESP_SETTINGS = {
         -- Initialize just the fields that the UI toggles immediately use
-        ShowBox = false,
-        ShowName = false,
+        ShowBox = true,
+        ShowName = true,
         ShowHealth = false,
         ShowDistance = false,
         ShowSkeletons = false,
-        ShowTracer = false,
+        ShowTracer = true,
         BoxOutlineColor = Color3.new(1, 1, 1),
         BoxColor = Color3.new(1, 1, 1),
         NameColor = Color3.new(1, 1, 1),
@@ -26,7 +26,7 @@ if not getgenv().ESP_SETTINGS then
         Enabled = true,
         BoxType = "2D", -- "2D" or "Corner Box Esp"
         TracerThickness = 2,
-        TracerPosition = "Bottom", -- "Top", "Middle", or "Bottom"
+        TracerPosition = "Top", -- "Top", "Middle", or "Bottom"
     }
 end
 
@@ -74,7 +74,7 @@ local function createEsp(player)
         }),
         boxOutline = create("Square", {
             Color = ESP_SETTINGS.BoxOutlineColor,
-            Thickness = 3,
+            Thickness = 1,
             Filled = false
         }),
         box = create("Square", {
