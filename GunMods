@@ -6,12 +6,12 @@ getgenv().Cheat.Options = getgenv().Cheat.Options or {}
 getgenv().Cheat.Options.GunMods = getgenv().Cheat.Options.GunMods or {}
 
 -- Gun mod toggles
-getgenv().Cheat.Options.GunMods.NoRecoil = true
-getgenv().Cheat.Options.GunMods.NoBobbing = true
-getgenv().Cheat.Options.GunMods.NoSway = true
-getgenv().Cheat.Options.GunMods.InstantLean = true
-getgenv().Cheat.Options.GunMods.NoSprintOffset = true
-getgenv().Cheat.Options.GunMods.UnlockFiremodes = true
+getgenv().Cheat.Options.GunMods.NoRecoil = false
+getgenv().Cheat.Options.GunMods.NoBobbing = false
+getgenv().Cheat.Options.GunMods.NoSway = false
+getgenv().Cheat.Options.GunMods.InstantLean = false
+getgenv().Cheat.Options.GunMods.NoSprintOffset = false
+getgenv().Cheat.Options.GunMods.UnlockFiremodes = false
 
 -- ===== TRACER SETTINGS =====
 getgenv().Tracers = false
