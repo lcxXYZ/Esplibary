@@ -4,12 +4,12 @@
 if not getgenv().ESP_SETTINGS then
     getgenv().ESP_SETTINGS = {
         -- Initialize just the fields that the UI toggles immediately use
-        ShowBox = true,
-        ShowName = true,
+        ShowBox = false,
+        ShowName = false,
         ShowHealth = false,
         ShowDistance = false,
         ShowSkeletons = false,
-        ShowTracer = true,
+        ShowTracer = false,
         BoxOutlineColor = Color3.new(1, 1, 1),
         BoxColor = Color3.new(1, 1, 1),
         NameColor = Color3.new(1, 1, 1),
@@ -25,7 +25,7 @@ if not getgenv().ESP_SETTINGS then
         WallCheck = false,
         Enabled = true,
         BoxType = "2D", -- "2D" or "Corner Box Esp"
-        TracerThickness = 2,
+        TracerThickness = 1,
         TracerPosition = "Top", -- "Top", "Middle", or "Bottom"
     }
 end
