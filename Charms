@@ -1,7 +1,7 @@
 -- Default getgenv config
 if not getgenv().ESPConfig then
     getgenv().ESPConfig = {
-        Enabled = true,                        -- turn ESP on/off
+        Enabled = false,                        -- turn ESP on/off
         HighlightSelf = true,                  -- highlight yourself
         CharmMode = "Pulsing",                 -- "Highlight" or "Pulsing"
         PulseSpeed = 2,                        -- speed of pulsing
