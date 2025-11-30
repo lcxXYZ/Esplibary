@@ -2,7 +2,7 @@
 if not getgenv().ESPConfig then
     getgenv().ESPConfig = {
         Enabled = false,                        -- turn ESP on/off
-        HighlightSelf = true,                  -- highlight yourself
+        HighlightSelf = false,                  -- highlight yourself
         CharmMode = "Pulsing",                 -- "Highlight" or "Pulsing"
         PulseSpeed = 2,                        -- speed of pulsing
         FillColor = Color3.fromRGB(255,150,200),
